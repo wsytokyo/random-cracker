@@ -1,7 +1,3 @@
-"""
-Tests for the MersenneTwisterCracker class.
-"""
-
 import subprocess
 import sys
 from random import Random

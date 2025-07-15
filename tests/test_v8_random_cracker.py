@@ -1,12 +1,48 @@
-"""
-Tests for the V8RandomCracker class.
-"""
-
 import subprocess
 
 import pytest
 
-from v8_random_cracker import V8RandomCracker
+from v8_random_cracker import (
+    UINT64_MASK,
+    BinaryCastConverter,
+    DivisionConverter,
+    V8RandomCracker,
+    XorShift128,
+)
+
+
+def test_binary_cast_converter():
+    """Verifies that BinaryCastConverter's from_double inverts to_double."""
+    converter = BinaryCastConverter()
+    # Use a known state where the lower 12 bits are zero
+    original_state = (0x123456789ABCDEF0 << 12) & UINT64_MASK
+    random_val = converter.to_double(original_state)
+    recovered_state = converter.from_double(random_val)
+
+    # The recovered state should match the original, ignoring the unknown lower 12 bits.
+    assert (original_state & ~0xFFF) == (recovered_state & ~0xFFF)
+
+
+def test_division_converter():
+    """Verifies that DivisionConverter's from_double inverts to_double."""
+    converter = DivisionConverter()
+    # Use a known state where the lower 11 bits are zero
+    original_state = (0x123456789ABCDEF0 << 11) & UINT64_MASK
+    random_val = converter.to_double(original_state)
+    recovered_state = converter.from_double(random_val)
+
+    # The recovered state should match the original, ignoring the unknown lower 11 bits.
+    assert (original_state & ~0x7FF) == (recovered_state & ~0x7FF)
+
+
+def test_xor_shift_128_inverse():
+    """Verifies that XorShift128.previous_state is the inverse of next_state."""
+    s0_orig, s1_orig = 0x123456789ABCDEF0, 0xFEDCBA9876543210
+    s0_next, s1_next = XorShift128.next_state(s0_orig, s1_orig)
+    s0_recovered, s1_recovered = XorShift128.previous_state(s0_next, s1_next)
+
+    assert s0_orig == s0_recovered
+    assert s1_orig == s1_recovered
 
 
 def test_v8_cracker_old_v8_binary_cast(capsys):
@@ -28,8 +64,9 @@ def test_v8_cracker_old_v8_binary_cast(capsys):
     ]
 
     cracker = V8RandomCracker()
-    cracker.add_observed_outputs(observed_sequence)
-    assert cracker.solve(), "Failed to solve for PRNG state with old V8 sequence."
+    assert cracker.solve(
+        observed_sequence
+    ), "Failed to solve for PRNG state with old V8 sequence."
 
     # Check that the fallback message was printed.
     captured = capsys.readouterr()
@@ -58,8 +95,9 @@ def test_v8_cracker_new_v8_division():
     ]
 
     cracker = V8RandomCracker()
-    cracker.add_observed_outputs(observed_sequence)
-    assert cracker.solve(), "Failed to solve for PRNG state with new V8 sequence."
+    assert cracker.solve(
+        observed_sequence
+    ), "Failed to solve for PRNG state with new V8 sequence."
 
     predictions = list(cracker.predict_next(5))
     assert predictions == pytest.approx(expected_predictions)
@@ -84,8 +122,9 @@ def test_v8_cracker_with_live_data():
     expected_predictions = full_sequence[5:]
 
     cracker = V8RandomCracker()
-    cracker.add_observed_outputs(observed_sequence)
-    assert cracker.solve(), "Failed to solve for PRNG state with live data."
+    assert cracker.solve(
+        observed_sequence
+    ), "Failed to solve for PRNG state with live data."
     predictions = list(cracker.predict_next(len(expected_predictions)))
     assert predictions == pytest.approx(expected_predictions)
 
@@ -109,7 +148,8 @@ def test_v8_cracker_with_live_data_many():
     expected_predictions = full_sequence[5:]
 
     cracker = V8RandomCracker()
-    cracker.add_observed_outputs(observed_sequence)
-    assert cracker.solve(), "Failed to solve for PRNG state with live data."
+    assert cracker.solve(
+        observed_sequence
+    ), "Failed to solve for PRNG state with live data."
     predictions = list(cracker.predict_next(len(expected_predictions)))
     assert predictions == pytest.approx(expected_predictions)
