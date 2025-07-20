@@ -18,7 +18,13 @@ from abc import ABC, abstractmethod
 
 from z3 import BitVec, LShR, Solver, sat
 
-from random_cracker import NotSolvableError, RandomCracker, RngType, SolverStatus
+from random_cracker import (
+    NotEnoughDataError,
+    NotSolvableError,
+    RandomCracker,
+    RngType,
+    SolverStatus,
+)
 
 # Mask for 64-bit unsigned integers.
 UINT64_MASK = (1 << 64) - 1  # 0xFFFFFFFFFFFFFFFF
@@ -141,7 +147,7 @@ class V8Cracker(RandomCracker[float]):
     def predict_next(self) -> float:
         match self.status:
             case SolverStatus.SOLVING | SolverStatus.CACHE_REFILLED_WHILE_SOLVING:
-                raise RuntimeError("Not enough data to predict.")
+                raise NotEnoughDataError()
             case SolverStatus.SOLVED_BEFORE_CACHE_REFILL:
                 result = self._peek_next_prediction()
                 self._rotate_state()
@@ -181,7 +187,9 @@ class V8Cracker(RandomCracker[float]):
     def _handle_cache_refilled_while_solving(self, new_value: float):
         if self._is_prediction_correct(new_value):
             self._rotate_state()
-            self._cache_refill_counter = CACHE_REFILL_SIZE - len(self._observed_values)
+            self._cache_refill_counter = (
+                CACHE_REFILL_SIZE - len(self._observed_values) + 1
+            )
             self._status = SolverStatus.SOLVED
         else:
             self._add_constraint(new_value)

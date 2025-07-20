@@ -2,14 +2,15 @@ import subprocess
 
 import pytest
 
+from random_cracker import RandomCracker, RngType, SolverStatus
 from v8_cracker import (
     UINT64_MASK,
     DivisionConverter,
-    V8Cracker,
+    NotSolvableError,
+    NotEnoughDataError,
     XorShift128PlusUtil,
-    SolverStatus,
 )
-from v8_cracker_legacy import BinaryCastConverter, V8CrackerLegacy
+from v8_cracker_legacy import BinaryCastConverter
 
 
 def test_binary_cast_converter():
@@ -61,7 +62,7 @@ def test_v8_cracker_legacy():
         0.5464511822883438,
     ]
 
-    cracker = V8CrackerLegacy()
+    cracker = RandomCracker.create(RngType.V8_LEGACY)
     for val in observed_sequence:
         cracker.add_value(val)
     assert cracker.status == SolverStatus.SOLVED_BEFORE_CACHE_REFILL
@@ -86,7 +87,7 @@ def test_v8_cracker():
         0.2487362245629754,
     ]
 
-    cracker = V8Cracker()
+    cracker = RandomCracker.create(RngType.V8)
     for val in observed_sequence:
         cracker.add_value(val)
 
@@ -113,7 +114,7 @@ def test_v8_cracker_with_live_data():
     observed_sequence = full_sequence[:5]
     expected_predictions = full_sequence[5:]
 
-    cracker = V8Cracker()
+    cracker = RandomCracker.create(RngType.V8)
     for val in observed_sequence:
         cracker.add_value(val)
 
@@ -137,9 +138,89 @@ def test_v8_cracker_with_live_data_many():
     )
     full_sequence = list(map(float, result.stdout.strip().split("\n")))
 
-    cracker = V8Cracker()
+    cracker = RandomCracker.create(RngType.V8)
     for val in full_sequence:
         if cracker.status == SolverStatus.SOLVED:
             assert cracker.predict_next() == val
         else:
             cracker.add_value(val)
+    assert cracker.status == SolverStatus.SOLVED
+
+    # add values after solved
+    cracker = RandomCracker.create(RngType.V8)
+    for val in full_sequence:
+        cracker.add_value(val)
+    assert cracker.status == SolverStatus.SOLVED
+
+    # add invalid value
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.add_value(0)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.add_value(0)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+
+
+def test_cache_refilled_while_solving():
+    """Verifies the cracker can recover after a cache refill occurs during solving."""
+    result = subprocess.run(
+        ["node", "sys_pseudo_rand_gen/v8_random.js", "1000"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    full_sequence = list(map(float, result.stdout.strip().split("\n")))
+
+    for i in range(60, 64):
+        cracker = RandomCracker.create(RngType.V8)
+        for val in full_sequence[i:]:
+            if cracker.status == SolverStatus.SOLVED:
+                assert cracker.predict_next() == val
+            else:
+                cracker.add_value(val)
+        assert cracker.status == SolverStatus.SOLVED
+
+
+def test_non_existing_rng_type():
+    """Verifies that creating a cracker with a non-existent RngType raises a ValueError."""
+    with pytest.raises(
+        ValueError,
+        match="No cracker available for the specified RNG type: non_existing_rng_type",
+    ):
+        RandomCracker.create("non_existing_rng_type")
+
+
+def test_not_enough_data_error():
+    """Verifies that calling predict_next before the state is solved raises NotEnoughDataError."""
+    cracker = RandomCracker.create(RngType.V8)
+    with pytest.raises(NotEnoughDataError, match="Not enough data to predict."):
+        cracker.predict_next()
+    assert cracker.status == SolverStatus.SOLVING
+
+
+def test_not_solvable_error():
+    """Verifies that the cracker enters and stays in a NOT_SOLVABLE state with invalid input."""
+    cracker = RandomCracker.create(RngType.V8)
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        observed_sequence = [
+            0.4835242132442181,
+            0.750646567782529,
+            0.544701479644019,
+            0.4982632644639161,
+            0.19140133448030294,
+            0,
+        ]
+        for val in observed_sequence:
+            cracker.add_value(val)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.predict_next()
+    assert cracker.status == SolverStatus.NOT_SOLVABLE

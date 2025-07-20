@@ -11,7 +11,7 @@ Supported PRNGs:
 
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import TypeVar, Generic
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -22,7 +22,10 @@ class RngType(Enum):
     V8 = auto()
     """V8 Engine's `Math.random()`."""
 
-    MersenneTwister = auto()
+    V8_LEGACY = auto()
+    """V8 Engine's `Math.random()` (legacy)."""
+
+    MERSENNE_TWISTER = auto()
     """CPython's `random` module (MT19937)."""
 
 
@@ -51,6 +54,11 @@ class NotSolvableError(RuntimeError):
         super().__init__(message)
 
 
+class NotEnoughDataError(RuntimeError):
+    def __init__(self, message="Not enough data to predict."):
+        super().__init__(message)
+
+
 class RandomCracker(ABC, Generic[T]):
     """An abstract base class defining the interface for a PRNG cracker."""
 
@@ -63,15 +71,17 @@ class RandomCracker(ABC, Generic[T]):
         # This factory method finds the correct subclass by iterating through them.
         # This is a simple approach for a small number of subclasses.
         for cls in RandomCracker.__subclasses__():
-            if getattr(cls, 'rng_type', None) == rng_type:
+            if hasattr(cls, "rng_type") and cls.rng_type == rng_type:
                 return cls()
+            for subcls in cls.__subclasses__():
+                if hasattr(subcls, "rng_type") and subcls.rng_type == rng_type:
+                    return subcls()
         raise ValueError(f"No cracker available for the specified RNG type: {rng_type}")
 
     @property
     @abstractmethod
     def status(self) -> SolverStatus:
         """Returns the current status of the cracker."""
-        ...
 
     @abstractmethod
     def predict_next(self) -> T:
@@ -87,7 +97,6 @@ class RandomCracker(ABC, Generic[T]):
         Returns:
             The predicted next value.
         """
-        ...
 
     @abstractmethod
     def add_value(self, value: T) -> None:
@@ -100,4 +109,3 @@ class RandomCracker(ABC, Generic[T]):
         Returns:
             None
         """
-        ...

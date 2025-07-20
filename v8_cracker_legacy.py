@@ -1,6 +1,6 @@
 import struct
 
-from v8_cracker import UINT64_MASK, RNGStateConverter, V8Cracker
+from v8_cracker import UINT64_MASK, RNGStateConverter, RngType, V8Cracker
 
 # The exponent part of a double-precision float representing 1.0.
 # This is used for converting between integer states and doubles.
@@ -42,32 +42,5 @@ class V8CrackerLegacy(V8Cracker):
     from older versions of the V8 engine.
     """
 
+    rng_type = RngType.V8_LEGACY
     converter = BinaryCastConverter
-
-
-if __name__ == "__main__":
-    observed_sequence = [
-        0.7059645842555349,
-        0.08792663094382847,
-        0.7988851586045023,
-        0.336854523159821,
-        0.07712871255601494,
-    ]
-    expected_predictions = [
-        0.21292322268831865,
-        0.6202035825575369,
-        0.3622407861913677,
-        0.08293436061131909,
-        0.5464511822883438,
-    ]
-
-    cracker = V8CrackerLegacy()
-    for val in observed_sequence:
-        cracker.add_value(val)
-
-    print(cracker.status)
-
-    for expected_prediction in expected_predictions:
-        prediction = cracker.predict_next()
-        print(prediction, expected_prediction)
-        assert prediction == expected_prediction
