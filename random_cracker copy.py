@@ -16,6 +16,7 @@ different PRNGs by observing their outputs. It includes implementations for:
 Once a generator's state is cracked, all future outputs can be predicted.
 """
 
+import enum
 import random
 import struct
 from abc import ABC, abstractmethod
@@ -32,33 +33,87 @@ TWO_POW_53 = 1 << 53
 MT_N = 624
 
 
-class Cracker(ABC):
+class RngType(enum.Enum):
+    V8 = 1
+    MersenneTwister = 2
+
+
+class SolverStatus(enum.Enum):
+    WAITING_FOR_DATA = auto()
+    PARTIALLY_SOLVED = auto()
+    SOLVED = auto()
+    NOT_SOLVABLE = auto()
+
+
+class RandomCracker(ABC):
     """An abstract base class defining the interface for a PRNG cracker."""
 
+    @staticmethod
+    def create(rng_type: RngType) -> "RandomCracker":
+        # class loader
+        for cls in RandomCracker.__subclasses__():
+            if cls.rng_type == rng_type:
+                return cls()
+        raise ValueError("Invalid RNG type.")
+
+    @property
     @abstractmethod
-    def solve(self, observed_sequence) -> bool:
+    def rng_type(self) -> RngType:
+        """Returns the type of the PRNG being cracked."""
+        ...
+
+    @property
+    @abstractmethod
+    def status(self) -> SolverStatus:
+        """Returns the current status of the cracker."""
+        ...
+
+    @abstractmethod
+    def add_observed_float(self, observed_value: float) -> SolverStatus:
         """
-        Solves for the PRNG's internal state given a sequence of outputs.
+        Solves for the PRNG's internal state given a sequence of floating-point outputs.
 
         Args:
             observed_sequence: A list of observed outputs (floats for V8,
                                ints for Mersenne Twister).
 
         Returns:
-            True if a solution was found, False otherwise.
+            SolverStatus: The current status of the cracker.
+        """
+        ...
+
+    @abstractmethod
+    def add_observed_int(self, observed_value: int) -> SolverStatus:
+        """
+        Solves for the PRNG's internal state given a sequence of integer outputs.
+
+        Args:
+            observed_sequence: A list of observed outputs (ints for Mersenne Twister).
+
+        Returns:
+            SolverStatus: The current status of the cracker.
+        """
+        ...
+
+    @abstractmethod
+    def predict_next_float(self) -> float:
+        """
+        Predicts the next floating-point random number in [0.0, 1.0).
+        """
+        ...
+
+    @abstractmethod
+    def predict_next_int32(self) -> int:
+        """
+        Predicts the next random integer with a specified bit width.
         """
 
     @abstractmethod
-    def predict_next_float(self, n: int):
+    def predict_next_bits(self, bits: int) -> int:
         """
-        Predicts the next `n` floating-point random numbers in [0.0, 1.0).
+        Predicts the next random integer with a specified bit width.
         """
-
-    @abstractmethod
-    def predict_next_int(self, n: int, bits: int):
-        """
-        Predicts the next `n` random integers with a specified bit width.
-        """
+        ...
 
 
 # region V8 Cracker Implementation
@@ -134,7 +189,7 @@ class XorShift128:
         return s0_prev, s1_prev
 
 
-class V8RandomCracker(Cracker):
+class V8RandomCracker(RandomCracker):
     """Cracks V8's Math.random() by solving for its xorshift128+ state."""
 
     def __init__(self):
@@ -196,7 +251,7 @@ class V8RandomCracker(Cracker):
 
 
 # region Mersenne Twister Cracker Implementation
-class MersenneTwisterCracker(Cracker):
+class MersenneTwisterCracker(RandomCracker):
     """Cracks CPython's random module by reconstructing the MT19937 state."""
 
     def __init__(self):
