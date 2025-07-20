@@ -6,11 +6,11 @@ from random_cracker import RandomCracker, RngType, SolverStatus
 from v8_cracker import (
     UINT64_MASK,
     DivisionConverter,
-    NotSolvableError,
     NotEnoughDataError,
+    NotSolvableError,
     XorShift128PlusUtil,
 )
-from v8_cracker_legacy import BinaryCastConverter
+from v8_legacy_cracker import BinaryCastConverter
 
 
 def test_binary_cast_converter():
