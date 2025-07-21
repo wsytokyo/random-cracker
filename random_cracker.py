@@ -50,11 +50,13 @@ class SolverStatus(Enum):
 
 
 class NotSolvableError(RuntimeError):
+    """Raised when a PRNG state cannot be solved with the given values."""
     def __init__(self, message="The PRNG state is not solvable with the given values."):
         super().__init__(message)
 
 
 class NotEnoughDataError(RuntimeError):
+    """Raised when there is not enough data to predict the next value."""
     def __init__(self, message="Not enough data to predict."):
         super().__init__(message)
 
