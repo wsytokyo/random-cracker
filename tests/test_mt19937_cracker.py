@@ -54,7 +54,7 @@ def test_mt19937_cracker_with_live_data_bits32():
     result = subprocess.run(
         [
             sys.executable,
-            "sys_pseudo_rand_gen/py_random_bits32.py",
+            "sys_pseudo_rand_gen/mt_random_bits32.py",
             str(num_to_generate),
         ],
         capture_output=True,

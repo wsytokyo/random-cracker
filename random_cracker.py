@@ -11,9 +11,6 @@ Supported PRNGs:
 
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
 
 
 class RngType(Enum):
@@ -21,6 +18,9 @@ class RngType(Enum):
 
     V8 = auto()
     """V8 Engine's `Math.random()`."""
+
+    V8_INT = auto()
+    """V8 Engine's `Math.random()` (integer)."""
 
     V8_LEGACY = auto()
     """V8 Engine's `Math.random()` (legacy)."""
@@ -51,24 +51,26 @@ class SolverStatus(Enum):
 
 class NotSolvableError(RuntimeError):
     """Raised when a PRNG state cannot be solved with the given values."""
+
     def __init__(self, message="The PRNG state is not solvable with the given values."):
         super().__init__(message)
 
 
 class NotEnoughDataError(RuntimeError):
     """Raised when there is not enough data to predict the next value."""
+
     def __init__(self, message="Not enough data to predict."):
         super().__init__(message)
 
 
-class RandomCracker(ABC, Generic[T]):
+class RandomCracker(ABC):
     """An abstract base class defining the interface for a PRNG cracker."""
 
     rng_type: RngType
     """The type of the PRNG being cracked."""
 
     @staticmethod
-    def create(rng_type: RngType) -> "RandomCracker":
+    def create(rng_type: RngType, **kwargs) -> "RandomCracker":
         """Creates a `RandomCracker` instance for the specified `RngType`.
 
         This factory method performs a depth-first search through the subclass tree
@@ -81,7 +83,7 @@ class RandomCracker(ABC, Generic[T]):
             # If the class itself doesn't have the rng_type, it might be an abstract
             # base for other crackers (e.g., V8Cracker).
             if getattr(cls, "rng_type") == rng_type:
-                return cls()
+                return cls(**kwargs)
             classes_to_visit.extend(cls.__subclasses__())
 
         raise ValueError(f"No cracker available for the specified RNG type: {rng_type}")
@@ -92,7 +94,19 @@ class RandomCracker(ABC, Generic[T]):
         """Returns the current status of the cracker."""
 
     @abstractmethod
-    def predict_next(self) -> T:
+    def add_value(self, value) -> None:
+        """
+        Adds an observed value from the PRNG and attempts to solve for its internal state.
+
+        Args:
+            value: The observed value from the PRNG.
+
+        Returns:
+            None
+        """
+
+    @abstractmethod
+    def predict_next(self):
         """
         Predicts the next value from the PRNG.
 
@@ -104,16 +118,4 @@ class RandomCracker(ABC, Generic[T]):
 
         Returns:
             The predicted next value.
-        """
-
-    @abstractmethod
-    def add_value(self, value: T) -> None:
-        """
-        Adds an observed value from the PRNG and attempts to solve for its internal state.
-
-        Args:
-            value: The observed value from the PRNG.
-
-        Returns:
-            None
         """

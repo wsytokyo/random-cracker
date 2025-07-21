@@ -14,22 +14,22 @@ from v8_legacy_cracker import BinaryCastConverter
 
 
 def test_binary_cast_converter():
-    """Verifies that BinaryCastConverter's from_double inverts to_double."""
+    """Verifies that BinaryCastConverter's from_value inverts to_value."""
     # Use a known state where the lower 12 bits are zero
     original_state = (0x123456789ABCDEF0 << 12) & UINT64_MASK
-    random_val = BinaryCastConverter.to_double(original_state)
-    recovered_state = BinaryCastConverter.from_double(random_val)
+    random_val = BinaryCastConverter.to_value(original_state)
+    recovered_state = BinaryCastConverter.from_value(random_val)
 
     # The recovered state should match the original, ignoring the unknown lower 12 bits.
     assert (original_state & ~0xFFF) == (recovered_state & ~0xFFF)
 
 
 def test_division_converter():
-    """Verifies that DivisionConverter's from_double inverts to_double."""
+    """Verifies that DivisionConverter's from_value inverts to_value."""
     # Use a known state where the lower 11 bits are zero
     original_state = (0x123456789ABCDEF0 << 11) & UINT64_MASK
-    random_val = DivisionConverter.to_double(original_state)
-    recovered_state = DivisionConverter.from_double(random_val)
+    random_val = DivisionConverter.to_value(original_state)
+    recovered_state = DivisionConverter.from_value(random_val)
 
     # The recovered state should match the original, ignoring the unknown lower 11 bits.
     assert (original_state & ~0x7FF) == (recovered_state & ~0x7FF)

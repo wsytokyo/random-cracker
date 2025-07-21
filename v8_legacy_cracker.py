@@ -18,7 +18,7 @@ class BinaryCastConverter(RNGStateConverter):
         return 12
 
     @classmethod
-    def to_double(cls, state: int) -> float:
+    def to_value(cls, state: int) -> float:
         state_upper_52_bits = state >> cls.get_ignored_lower_bits()
         state_with_exponent = state_upper_52_bits | EXPONENT_MASK
         packed = struct.pack("<Q", state_with_exponent)
@@ -26,7 +26,7 @@ class BinaryCastConverter(RNGStateConverter):
         return random_double - 1.0
 
     @classmethod
-    def from_double(cls, value: float) -> int:
+    def from_value(cls, value: float) -> int:
         value_plus_one = value + 1.0
         packed = struct.pack("<d", value_plus_one)
         state_with_exponent = struct.unpack("<Q", packed)[0]

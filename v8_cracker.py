@@ -16,7 +16,7 @@ methods used across V8 versions.
 
 from abc import ABC, abstractmethod
 
-from z3 import BitVec, LShR, Solver, sat
+from z3 import BitVec, LShR, Solver, sat, unsat
 
 from random_cracker import (
     NotEnoughDataError,
@@ -45,11 +45,11 @@ class RNGStateConverter(ABC):
 
     @classmethod
     @abstractmethod
-    def to_double(cls, state: int) -> float: ...
+    def to_value(cls, state: int): ...
 
     @classmethod
     @abstractmethod
-    def from_double(cls, value: float) -> int: ...
+    def from_value(cls, value) -> int: ...
 
 
 class DivisionConverter(RNGStateConverter):
@@ -63,12 +63,12 @@ class DivisionConverter(RNGStateConverter):
         return 11
 
     @classmethod
-    def to_double(cls, state: int) -> float:
+    def to_value(cls, state: int) -> float:
         state_upper_53_bits = state >> cls.get_ignored_lower_bits()
         return float(state_upper_53_bits) / TWO_POW_53
 
     @classmethod
-    def from_double(cls, value: float) -> int:
+    def from_value(cls, value: float) -> int:
         state_upper_53_bits = int(value * TWO_POW_53)
         recovered_state = state_upper_53_bits << cls.get_ignored_lower_bits()
         return recovered_state & UINT64_MASK
@@ -96,7 +96,7 @@ class XorShift128PlusUtil:
         return s0_prev, s1_prev
 
 
-class V8Cracker(RandomCracker[float]):
+class V8Cracker(RandomCracker):
     """Cracks V8's `Math.random()` by incrementally solving for its state.
 
     This class implements a state machine to handle the complexities of V8's
@@ -179,10 +179,12 @@ class V8Cracker(RandomCracker[float]):
             self._status = SolverStatus.SOLVED_BEFORE_CACHE_REFILL
         else:
             self._add_constraint(new_value)
-            if self._solver.check() != sat:
+            if self._solver.check() == unsat:
                 self._status = SolverStatus.CACHE_REFILLED_WHILE_SOLVING
-                return
-            self._update_state_from_model()
+            elif self._solver.check() == sat:
+                self._update_state_from_model()
+            else:
+                print("warning: give up because of timeout")
 
     def _handle_cache_refilled_while_solving(self, new_value: float):
         if self._is_prediction_correct(new_value):
@@ -225,7 +227,7 @@ class V8Cracker(RandomCracker[float]):
 
     def _add_constraint(self, new_val: float):
         shift = self.converter.get_ignored_lower_bits()
-        known_bits = self.converter.from_double(new_val) >> shift
+        known_bits = self.converter.from_value(new_val) >> shift
         self._solver.add(LShR(self._s0_sym, shift) == known_bits)
         self._rotate_symbolic_state()
 
@@ -259,7 +261,7 @@ class V8Cracker(RandomCracker[float]):
         self._s0_sym = temp
 
     def _peek_next_prediction(self) -> float:
-        return self.converter.to_double(self._s0_val)
+        return self.converter.to_value(self._s0_val)
 
     def _is_prediction_correct(self, new_value: float) -> bool:
         return self._peek_next_prediction() == new_value
