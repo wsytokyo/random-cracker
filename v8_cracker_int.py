@@ -3,8 +3,6 @@ from z3 import LShR, set_param
 from random_cracker import RandomCracker, RngType
 from v8_cracker import DivisionConverter, V8Cracker
 
-set_param("timeout", 10000)
-
 
 class V8IntConverter(DivisionConverter):
     def __init__(self, multiplier: int):
@@ -22,6 +20,7 @@ class V8IntCracker(V8Cracker):
     rng_type = RngType.V8_INT
 
     def __init__(self, multiplier: int):
+        set_param("timeout", 10000)
         super().__init__()
         self._multiplier = multiplier
         self.converter = V8IntConverter(multiplier)
