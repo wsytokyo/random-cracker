@@ -25,7 +25,7 @@ class RngType(Enum):
     V8_LEGACY = auto()
     """V8 Engine's `Math.random()` (legacy)."""
 
-    MERSENNE_TWISTER = auto()
+    MT19937 = auto()
     """CPython's `random` module (MT19937)."""
 
 
@@ -67,15 +67,21 @@ class RandomCracker(ABC, Generic[T]):
 
     @staticmethod
     def create(rng_type: RngType) -> "RandomCracker":
-        """Creates a `RandomCracker` instance for the specified `RngType`."""
-        # This factory method finds the correct subclass by iterating through them.
-        # This is a simple approach for a small number of subclasses.
-        for cls in RandomCracker.__subclasses__():
-            if hasattr(cls, "rng_type") and cls.rng_type == rng_type:
+        """Creates a `RandomCracker` instance for the specified `RngType`.
+
+        This factory method performs a depth-first search through the subclass tree
+        to find a cracker with a matching `rng_type`.
+        """
+        # Use an iterative DFS to find the correct subclass.
+        classes_to_visit = list(RandomCracker.__subclasses__())
+        while classes_to_visit:
+            cls = classes_to_visit.pop()
+            # If the class itself doesn't have the rng_type, it might be an abstract
+            # base for other crackers (e.g., V8Cracker).
+            if getattr(cls, "rng_type") == rng_type:
                 return cls()
-            for subcls in cls.__subclasses__():
-                if hasattr(subcls, "rng_type") and subcls.rng_type == rng_type:
-                    return subcls()
+            classes_to_visit.extend(cls.__subclasses__())
+
         raise ValueError(f"No cracker available for the specified RNG type: {rng_type}")
 
     @property
