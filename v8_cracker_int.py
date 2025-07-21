@@ -37,16 +37,7 @@ class V8IntCracker(V8Cracker):
 
 
 if __name__ == "__main__":
-    multiplier = 2**60
-    multiplier = 2**53
-    multiplier = 2**50
-    multiplier = 2**48 - 1000
-    multiplier = 2**40 - 12345
-    multiplier = 10_000_000_000
-    multiplier = 8_000_000_000
-    multiplier = 5_000_000_000
     multiplier = 2**32
-    # multiplier = 2**30
 
     cracker = RandomCracker.create(RngType.V8_INT, multiplier=multiplier)
     seq = [
