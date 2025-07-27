@@ -10,7 +10,7 @@ from v8_cracker import (
     NotSolvableError,
     XorShift128PlusUtil,
 )
-from v8_legacy_cracker import BinaryCastConverter
+from v8_cracker_legacy import BinaryCastConverter
 
 
 def test_binary_cast_converter():
@@ -88,6 +88,42 @@ def test_v8_cracker():
     ]
 
     cracker = RandomCracker.create(RngType.V8)
+    for val in observed_sequence:
+        cracker.add_value(val)
+
+    assert cracker.status == SolverStatus.SOLVED_BEFORE_CACHE_REFILL
+    predictions = [cracker.predict_next() for _ in range(len(expected_predictions))]
+    assert predictions == expected_predictions
+
+
+def test_v8_cracker_int():
+    """Verifies the modern cracker with a known sequence for new V8 versions."""
+    observed_sequence = [
+        174390312844368,
+        325169823245086,
+        434518333297733,
+        21654604706188,
+        1198727051254777,
+        849182701224252,
+        332985252884348,
+        977551670572195,
+        1074374053570346,
+        897120344299258,
+    ]
+    expected_predictions = [
+        32958186881766,
+        967582125085473,
+        395689715139108,
+        681057837347206,
+        260093462540599,
+        514982480956478,
+        650321379380139,
+        243702178326621,
+        622813667886716,
+        929309467159848,
+    ]
+
+    cracker = RandomCracker.create(RngType.V8_INT, multiplier=1234567890123456)
     for val in observed_sequence:
         cracker.add_value(val)
 

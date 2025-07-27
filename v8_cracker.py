@@ -16,7 +16,7 @@ methods used across V8 versions.
 
 from abc import ABC, abstractmethod
 
-from z3 import BitVec, LShR, Solver, sat, unsat
+from z3 import BitVec, LShR, SolverFor, sat, set_param, unsat
 
 from random_cracker import (
     NotEnoughDataError,
@@ -125,8 +125,12 @@ class V8Cracker(RandomCracker):
     # --- Public API ---
 
     def __init__(self):
+        set_param("timeout", 10000)
+        set_param("parallel.enable", True)
+
         self._status = SolverStatus.SOLVING
-        self._solver = Solver()
+        self._solver = SolverFor("QF_BV")
+
         self._solver.push()  # For lightweight solver resets
         self._s0_sym = BitVec("s0", 64)
         self._s1_sym = BitVec("s1", 64)
@@ -180,6 +184,7 @@ class V8Cracker(RandomCracker):
         else:
             self._add_constraint(new_value)
             if self._solver.check() == unsat:
+                print("warning: cache refilling detected")
                 self._status = SolverStatus.CACHE_REFILLED_WHILE_SOLVING
             elif self._solver.check() == sat:
                 self._update_state_from_model()

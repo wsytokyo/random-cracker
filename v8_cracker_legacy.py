@@ -34,7 +34,7 @@ class BinaryCastConverter(RNGStateConverter):
         return recovered_state & UINT64_MASK
 
 
-class V8LegacyCracker(V8Cracker):
+class V8CrackerLegacy(V8Cracker):
     """A V8Cracker that uses the older binary casting conversion method.
 
     This class extends V8Cracker and overrides the converter to use
