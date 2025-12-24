@@ -1,16 +1,35 @@
 # Random Number Cracker
 
-A collection of tools for analyzing and cracking various random number generators, including:
-
-- V8 random number generator (JavaScript)
-- Mersenne Twister random number generator (Python)
+Random Number Cracker is a Z3-powered toolkit for reconstructing the internal
+state of popular pseudo-random number generators (PRNGs) from their observed
+outputs. It ships with ready-to-run crackers for the V8 JavaScript engine
+(modern, legacy, and integer-multiplier variants) as well as CPython's
+Mersenne Twister, plus a CLI that streams predictions once the solver locks
+onto the hidden state.
 
 ## Features
 
-- Implementation of random number cracker algorithms
-- Test suite for verifying cracker effectiveness
-- Support for multiple random number generator types
-- Live data testing capabilities
+- **Multi-PRNG coverage** – Crack V8 (`Math.random()`) modern, legacy, and
+  integer-multiplier modes alongside CPython's MT19937 (`random.getrandbits`).
+- **Constraint-solver pipeline** – Incrementally feed observed outputs into a
+  solver that detects cache refills, recovers internal state, and emits
+  deterministic predictions.
+- **Command-line workflow** – Stream PRNG samples via stdin and print future
+  outputs with flexible prediction counts and V8_INT multipliers.
+- **Live data harnesses** – Reproduce real engine behavior using the Node.js
+  and Python helpers under `sys_pseudo_rand_gen/` for end-to-end validation.
+- **Comprehensive pytest suite** – Deterministic and live-data tests ensure the
+  crackers stay accurate across engines and seeds.
+
+## Installation
+
+Create a virtual environment and install dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # On Unix/macOS
+pip install -r requirements.txt
+```
 
 ## Usage
 
@@ -35,15 +54,9 @@ python3 main.py -t MT19937 -p 20 < examples/mt_outputs.txt
 python3 main.py -t V8_INT --multiplier 1234567890123456 < examples/v8_int_outputs.txt
 ```
 
-1. Create a virtual environment and install dependencies:
+## Testing
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate  # On Unix/macOS
-pip install -r requirements.txt
-```
-
-2. Run the test suite:
+Run the pytest suite to verify functionality:
 
 ```bash
 pytest
