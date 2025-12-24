@@ -1,0 +1,399 @@
+import subprocess
+
+import pytest
+
+from crackers.random_cracker import RandomCracker, RngType, SolverStatus
+from crackers.v8_cracker import (
+    UINT64_MASK,
+    DivisionConverter,
+    NotEnoughDataError,
+    NotSolvableError,
+    XorShift128PlusUtil,
+)
+from crackers.v8_cracker_legacy import BinaryCastConverter
+
+
+def test_binary_cast_converter():
+    """Verifies that BinaryCastConverter's from_value inverts to_value."""
+    # Use a known state where the lower 12 bits are zero
+    original_state = (0x123456789ABCDEF0 << 12) & UINT64_MASK
+    random_val = BinaryCastConverter.to_value(original_state)
+    recovered_state = BinaryCastConverter.from_value(random_val)
+
+    # The recovered state should match the original, ignoring the unknown lower 12 bits.
+    assert (original_state & ~0xFFF) == (recovered_state & ~0xFFF)
+
+
+def test_division_converter():
+    """Verifies that DivisionConverter's from_value inverts to_value."""
+    # Use a known state where the lower 11 bits are zero
+    original_state = (0x123456789ABCDEF0 << 11) & UINT64_MASK
+    random_val = DivisionConverter.to_value(original_state)
+    recovered_state = DivisionConverter.from_value(random_val)
+
+    # The recovered state should match the original, ignoring the unknown lower 11 bits.
+    assert (original_state & ~0x7FF) == (recovered_state & ~0x7FF)
+
+
+def test_xor_shift_128_inverse():
+    """Verifies that XorShift128PlusUtil.previous_state is the inverse of next_state."""
+    s0_orig, s1_orig = 0x123456789ABCDEF0, 0xFEDCBA9876543210
+    s0_next, s1_next = XorShift128PlusUtil.next_state(s0_orig, s1_orig)
+    s0_recovered, s1_recovered = XorShift128PlusUtil.previous_state(s0_next, s1_next)
+
+    assert s0_orig == s0_recovered
+    assert s1_orig == s1_recovered
+
+
+def test_v8_cracker_legacy():
+    """Verifies the legacy cracker with a known sequence for old V8 versions."""
+    observed_sequence = [
+        0.7059645842555349,
+        0.08792663094382847,
+        0.7988851586045023,
+        0.336854523159821,
+        0.07712871255601494,
+    ]
+    expected_predictions = [
+        0.21292322268831865,
+        0.6202035825575369,
+        0.3622407861913677,
+        0.08293436061131909,
+        0.5464511822883438,
+    ]
+
+    cracker = RandomCracker.create(RngType.V8_LEGACY)
+    for val in observed_sequence:
+        cracker.add_value(val)
+    assert cracker.status == SolverStatus.SOLVED_BEFORE_CACHE_REFILL
+    predictions = [cracker.predict_next() for _ in range(len(expected_predictions))]
+    assert predictions == expected_predictions
+
+
+def test_v8_cracker():
+    """Verifies the modern cracker with a known sequence for new V8 versions."""
+    observed_sequence = [
+        0.4835242132442181,
+        0.750646567782529,
+        0.544701479644019,
+        0.4982632644639161,
+        0.19140133448030294,
+    ]
+    expected_predictions = [
+        0.9205346875124655,
+        0.5470430065705328,
+        0.5253121712480878,
+        0.09078515940278675,
+        0.2487362245629754,
+    ]
+
+    cracker = RandomCracker.create(RngType.V8)
+    for val in observed_sequence:
+        cracker.add_value(val)
+
+    assert cracker.status == SolverStatus.SOLVED_BEFORE_CACHE_REFILL
+    predictions = [cracker.predict_next() for _ in range(len(expected_predictions))]
+    assert predictions == expected_predictions
+
+
+def test_v8_cracker_int():
+    """Verifies the modern cracker with a known sequence for new V8 versions."""
+    observed_sequence = [
+        174390312844368,
+        325169823245086,
+        434518333297733,
+        21654604706188,
+        1198727051254777,
+        849182701224252,
+        332985252884348,
+        977551670572195,
+        1074374053570346,
+        897120344299258,
+    ]
+    expected_predictions = [
+        32958186881766,
+        967582125085473,
+        395689715139108,
+        681057837347206,
+        260093462540599,
+        514982480956478,
+        650321379380139,
+        243702178326621,
+        622813667886716,
+        929309467159848,
+    ]
+
+    cracker = RandomCracker.create(RngType.V8_INT, multiplier=1234567890123456)
+    for val in observed_sequence:
+        cracker.add_value(val)
+
+    assert cracker.status == SolverStatus.SOLVED_BEFORE_CACHE_REFILL
+    predictions = [cracker.predict_next() for _ in range(len(expected_predictions))]
+    assert predictions == expected_predictions
+
+
+@pytest.mark.repeat(10)
+def test_v8_cracker_with_live_data():
+    """Verifies the cracker against live data from a running Node.js process.
+
+    This test provides strong evidence that the cracker works against a real-world
+    V8 implementation. It is repeated to test against different random seeds.
+    """
+    result = subprocess.run(
+        ["node", "sys_pseudo_rand_gen/v8_random.js", "30"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    full_sequence = list(map(float, result.stdout.strip().split("\n")))
+
+    observed_sequence = full_sequence[:5]
+    expected_predictions = full_sequence[5:]
+
+    cracker = RandomCracker.create(RngType.V8)
+    for val in observed_sequence:
+        cracker.add_value(val)
+
+    assert cracker.status == SolverStatus.SOLVED_BEFORE_CACHE_REFILL
+    predictions = [cracker.predict_next() for _ in range(len(expected_predictions))]
+    assert predictions == expected_predictions
+
+
+def test_v8_cracker_with_live_data_many():
+    """Verifies the cracker against live data from a running Node.js process.
+
+    This test provides strong evidence that the cracker works against a real-world
+    V8 implementation. It is repeated to test against different random seeds.
+    """
+    result = subprocess.run(
+        ["node", "sys_pseudo_rand_gen/v8_random.js", "1000"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    full_sequence = list(map(float, result.stdout.strip().split("\n")))
+
+    cracker = RandomCracker.create(RngType.V8)
+    for val in full_sequence:
+        if cracker.status == SolverStatus.SOLVED:
+            assert cracker.predict_next() == val
+        else:
+            cracker.add_value(val)
+    assert cracker.status == SolverStatus.SOLVED
+
+    # add values after solved
+    cracker = RandomCracker.create(RngType.V8)
+    for val in full_sequence:
+        cracker.add_value(val)
+    assert cracker.status == SolverStatus.SOLVED
+
+    # add invalid value
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.add_value(0)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.add_value(0)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+
+
+def test_cache_refilled_while_solving():
+    """Verifies the cracker can recover after a cache refill occurs during solving."""
+    result = subprocess.run(
+        ["node", "sys_pseudo_rand_gen/v8_random.js", "1000"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    full_sequence = list(map(float, result.stdout.strip().split("\n")))
+
+    for i in range(60, 64):
+        cracker = RandomCracker.create(RngType.V8)
+        for val in full_sequence[i:]:
+            if cracker.status == SolverStatus.SOLVED:
+                assert cracker.predict_next() == val
+            else:
+                cracker.add_value(val)
+        assert cracker.status == SolverStatus.SOLVED
+
+
+################################
+
+
+# @pytest.mark.skip(
+#     "To run this test, You need to run `nvm install v22.14` to install a legacy Node.js version."
+# )
+@pytest.mark.repeat(10)
+def test_v8_cracker_legacy_with_live_data():
+    """Verifies the cracker against live data from a running Node.js process.
+
+    This test provides strong evidence that the cracker works against a real-world
+    V8 implementation. It is repeated to test against different random seeds.
+    """
+    nvm_script_path = "~/.nvm/nvm.sh"
+    node_path = (
+        subprocess.check_output(
+            ["bash", "-c", f"source {nvm_script_path} && nvm which v22.14"]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+    result = subprocess.run(
+        [
+            node_path,
+            "sys_pseudo_rand_gen/v8_random.js",
+            "30",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    full_sequence = list(map(float, result.stdout.strip().split("\n")))
+
+    observed_sequence = full_sequence[:5]
+    expected_predictions = full_sequence[5:]
+
+    cracker = RandomCracker.create(RngType.V8_LEGACY)
+    for val in observed_sequence:
+        cracker.add_value(val)
+
+    assert cracker.status == SolverStatus.SOLVED_BEFORE_CACHE_REFILL
+    predictions = [cracker.predict_next() for _ in range(len(expected_predictions))]
+    assert predictions == expected_predictions
+
+
+# @pytest.mark.skip(
+#     "To run this test, You need to run `nvm install v22.14` to install a legacy Node.js version."
+# )
+def test_v8_cracker_legacy_with_live_data_many():
+    """Verifies the cracker against live data from a running Node.js process.
+
+    This test provides strong evidence that the cracker works against a real-world
+    V8 implementation. It is repeated to test against different random seeds.
+    """
+    nvm_script_path = "~/.nvm/nvm.sh"
+    node_path = (
+        subprocess.check_output(
+            ["bash", "-c", f"source {nvm_script_path} && nvm which v22.14"]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+    result = subprocess.run(
+        [
+            node_path,
+            "sys_pseudo_rand_gen/v8_random.js",
+            "1000",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    full_sequence = list(map(float, result.stdout.strip().split("\n")))
+
+    cracker = RandomCracker.create(RngType.V8_LEGACY)
+    for val in full_sequence:
+        if cracker.status == SolverStatus.SOLVED:
+            assert cracker.predict_next() == val
+        else:
+            cracker.add_value(val)
+    assert cracker.status == SolverStatus.SOLVED
+
+    # add values after solved
+    cracker = RandomCracker.create(RngType.V8_LEGACY)
+    for val in full_sequence:
+        cracker.add_value(val)
+    assert cracker.status == SolverStatus.SOLVED
+
+    # add invalid value
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.add_value(0)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.add_value(0)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+
+
+def test_cache_refilled_while_solving_legacy():
+    """Verifies the cracker can recover after a cache refill occurs during solving."""
+    nvm_script_path = "~/.nvm/nvm.sh"
+    node_path = (
+        subprocess.check_output(
+            ["bash", "-c", f"source {nvm_script_path} && nvm which v22.14"]
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
+    result = subprocess.run(
+        [
+            node_path,
+            "sys_pseudo_rand_gen/v8_random.js",
+            "1000",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    full_sequence = list(map(float, result.stdout.strip().split("\n")))
+
+    for i in range(60, 64):
+        cracker = RandomCracker.create(RngType.V8_LEGACY)
+        for val in full_sequence[i:]:
+            if cracker.status == SolverStatus.SOLVED:
+                assert cracker.predict_next() == val
+            else:
+                cracker.add_value(val)
+        assert cracker.status == SolverStatus.SOLVED
+
+
+##############################
+
+
+def test_non_existing_rng_type():
+    """Verifies that creating a cracker with a non-existent RngType raises a ValueError."""
+    with pytest.raises(
+        ValueError,
+        match="No cracker available for the specified RNG type: non_existing_rng_type",
+    ):
+        RandomCracker.create("non_existing_rng_type")
+
+
+def test_not_enough_data_error():
+    """Verifies that calling predict_next before the state is solved raises NotEnoughDataError."""
+    cracker = RandomCracker.create(RngType.V8)
+    with pytest.raises(NotEnoughDataError, match="Not enough data to predict."):
+        cracker.predict_next()
+    assert cracker.status == SolverStatus.SOLVING
+
+
+def test_not_solvable_error():
+    """Verifies that the cracker enters and stays in a NOT_SOLVABLE state with invalid input."""
+    cracker = RandomCracker.create(RngType.V8)
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        observed_sequence = [
+            0.4835242132442181,
+            0.750646567782529,
+            0.544701479644019,
+            0.4982632644639161,
+            0.19140133448030294,
+            0,
+        ]
+        for val in observed_sequence:
+            cracker.add_value(val)
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
+    with pytest.raises(
+        NotSolvableError, match="The PRNG state is not solvable with the given values."
+    ):
+        cracker.predict_next()
+    assert cracker.status == SolverStatus.NOT_SOLVABLE
