@@ -4,8 +4,8 @@ from random import Random
 
 import pytest
 
-from mt19937_cracker import N
-from random_cracker import (
+from crackers.mt19937_cracker import N
+from crackers.random_cracker import (
     NotEnoughDataError,
     NotSolvableError,
     RandomCracker,

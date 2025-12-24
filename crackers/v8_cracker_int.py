@@ -1,7 +1,7 @@
 from z3 import LShR
 
-from random_cracker import RandomCracker, RngType
-from v8_cracker import DivisionConverter, V8Cracker
+from crackers.random_cracker import RandomCracker, RngType
+from crackers.v8_cracker import DivisionConverter, V8Cracker
 
 
 class V8IntConverter(DivisionConverter):
@@ -25,18 +25,19 @@ class V8IntCracker(V8Cracker):
         self.converter = V8IntConverter(multiplier)
 
     def _add_constraint(self, new_val: int):
-        shift = self.converter.get_ignored_lower_bits()
         known_bits_lower = self.converter.from_value(new_val)
         known_bits_upper = self.converter.from_value(new_val + 1)
-        i = shift
-        while known_bits_lower >> i != known_bits_upper >> i:
-            i += 1
-        self._solver.add(LShR(self._s0_sym, i) == known_bits_lower >> i)
+        shift = self.converter.get_ignored_lower_bits()
+        self._solver.add(known_bits_lower >> shift <= LShR(self._s0_sym, shift))
+        self._solver.add(LShR(self._s0_sym, shift) <= known_bits_upper >> shift)
         self._rotate_symbolic_state()
 
 
 if __name__ == "__main__":
+    multiplier = 2**64
+    multiplier = 2**53
     multiplier = 2**32
+    multiplier = 4_444_444_444
 
     cracker = RandomCracker.create(RngType.V8_INT, multiplier=multiplier)
     seq = [
@@ -61,8 +62,8 @@ if __name__ == "__main__":
         0.5044790755285522,
         0.7527406751741436,
     ]
-    observed_sequence = seq[:16]
-    expected_predictions = seq[16:]
+    observed_sequence = seq[:10]
+    expected_predictions = seq[10:]
     observed_sequence_int = [int(val * multiplier) for val in observed_sequence]
     expected_predictions_int = [int(val * multiplier) for val in expected_predictions]
     for val in observed_sequence_int:

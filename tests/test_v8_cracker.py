@@ -2,15 +2,15 @@ import subprocess
 
 import pytest
 
-from random_cracker import RandomCracker, RngType, SolverStatus
-from v8_cracker import (
+from crackers.random_cracker import RandomCracker, RngType, SolverStatus
+from crackers.v8_cracker import (
     UINT64_MASK,
     DivisionConverter,
     NotEnoughDataError,
     NotSolvableError,
     XorShift128PlusUtil,
 )
-from v8_cracker_legacy import BinaryCastConverter
+from crackers.v8_cracker_legacy import BinaryCastConverter
 
 
 def test_binary_cast_converter():
@@ -223,6 +223,9 @@ def test_cache_refilled_while_solving():
 ################################
 
 
+# @pytest.mark.skip(
+#     "To run this test, You need to run `nvm install v22.14` to install a legacy Node.js version."
+# )
 @pytest.mark.repeat(10)
 def test_v8_cracker_legacy_with_live_data():
     """Verifies the cracker against live data from a running Node.js process.
@@ -262,6 +265,9 @@ def test_v8_cracker_legacy_with_live_data():
     assert predictions == expected_predictions
 
 
+# @pytest.mark.skip(
+#     "To run this test, You need to run `nvm install v22.14` to install a legacy Node.js version."
+# )
 def test_v8_cracker_legacy_with_live_data_many():
     """Verifies the cracker against live data from a running Node.js process.
 

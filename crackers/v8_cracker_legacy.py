@@ -1,6 +1,6 @@
 import struct
 
-from v8_cracker import UINT64_MASK, RNGStateConverter, RngType, V8Cracker
+from crackers.v8_cracker import UINT64_MASK, RNGStateConverter, RngType, V8Cracker
 
 # The exponent part of a double-precision float representing 1.0.
 # This is used for converting between integer states and doubles.

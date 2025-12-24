@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 
 from z3 import BitVec, LShR, SolverFor, sat, set_param, unsat
 
-from random_cracker import (
+from crackers.random_cracker import (
     NotEnoughDataError,
     NotSolvableError,
     RandomCracker,

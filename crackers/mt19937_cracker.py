@@ -1,6 +1,6 @@
 from _random import Random
 
-from random_cracker import (
+from crackers.random_cracker import (
     NotEnoughDataError,
     NotSolvableError,
     RandomCracker,
